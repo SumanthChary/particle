@@ -129,7 +129,7 @@
         import { AfterimagePass } from 'https://unpkg.com/three@0.160.0/examples/jsm/postprocessing/AfterimagePass.js';
 
         // --- CONFIGURATION ---
-        const PARTICLE_COUNT = 60000; 
+        const PARTICLE_COUNT = 25000; 
         const SHAPES = ['GALAXY', 'NEBULA', 'DNA', 'FLOWER_OF_LIFE', 'HUMAN'];
         let currentShapeIndex = 0;
         let nextShapeIndex = 0;
@@ -198,7 +198,7 @@
             colors[i * 3] = color.r;
             colors[i * 3 + 1] = color.g;
             colors[i * 3 + 2] = color.b;
-            sizes[i] = Math.random() * 1.2 + 0.4;
+            sizes[i] = Math.random() * 2.5 + 1.5;
             
             posA[i * 3] = (Math.random() - 0.5) * 200;
             posA[i * 3 + 1] = (Math.random() - 0.5) * 200;
@@ -220,6 +220,7 @@
                 uTime: { value: 0 },
                 uMorph: { value: 0 },
                 uFingers: { value: new Array(10).fill(null).map(() => new THREE.Vector3(-1000, 0, 0)) },
+                uFingerVelocities: { value: new Array(10).fill(null).map(() => new THREE.Vector3(0, 0, 0)) },
                 uExplosion: { value: 0 },
                 uVortex: { value: 0 },
                 uBridge: { value: 0 }
@@ -233,6 +234,7 @@
                 uniform float uTime;
                 uniform float uMorph;
                 uniform vec3 uFingers[10];
+                uniform vec3 uFingerVelocities[10];
                 uniform float uExplosion;
                 uniform float uVortex;
                 uniform float uBridge;
@@ -241,24 +243,34 @@
                     vColor = color;
                     vec3 pos = mix(posA, posB, uMorph);
                     
-                    // Subtle floating animation
-                    pos.x += sin(uTime * 0.4 + pos.y * 0.05) * 0.8;
+                    // Subtle floating animation (reduced when interacting)
+                    float noise = sin(uTime * 0.4 + pos.y * 0.05) * 0.8;
+                    pos.x += noise;
                     pos.y += cos(uTime * 0.4 + pos.x * 0.05) * 0.8;
 
                     // Multi-finger Interaction
                     for(int i = 0; i < 10; i++) {
                         vec3 fPos = uFingers[i];
+                        vec3 fVel = uFingerVelocities[i];
                         if(fPos.x < -500.0) continue;
 
                         float d = distance(pos, fPos);
-                        if(d < 25.0) {
-                            float force = (1.0 - d / 25.0);
-                            // Repulsion
-                            pos += normalize(pos - fPos) * uExplosion * force * 12.0;
-                            // Vortex
+                        if(d < 35.0) {
+                            float force = smoothstep(35.0, 0.0, d);
+                            
+                            // 1. Drag Effect: Particles follow finger movement with inertia
+                            pos += fVel * force * 20.0;
+
+                            // 2. Repulsion (Explosion)
+                            pos += normalize(pos - fPos) * uExplosion * force * 15.0;
+                            
+                            // 3. Vortex (Swirl)
                             vec3 toFinger = fPos - pos;
                             vec3 orbit = cross(toFinger, vec3(0.0, 0.0, 1.0));
-                            pos += normalize(orbit) * uVortex * force * 6.0;
+                            pos += normalize(orbit) * uVortex * force * 8.0;
+
+                            // 4. Magnetic Pull: Stronger "stickiness"
+                            pos = mix(pos, fPos, force * 0.12);
                         }
                     }
 
@@ -267,7 +279,7 @@
                         vec3 midPoint = mix(uFingers[0], uFingers[5], 0.5);
                         float dMid = distance(pos, midPoint);
                         if(dMid < 25.0) {
-                            pos = mix(pos, midPoint, uBridge * 0.1);
+                            pos = mix(pos, midPoint, uBridge * 0.15);
                         }
                     }
 
@@ -409,6 +421,7 @@
         // Smoothing for hand positions
         const fingerTargets = new Array(10).fill(null).map(() => new THREE.Vector3(-1000, 0, 0));
         const fingerCurrents = new Array(10).fill(null).map(() => new THREE.Vector3(-1000, 0, 0));
+        const fingerVelocities = new Array(10).fill(null).map(() => new THREE.Vector3(0, 0, 0));
         
         const hand1Target = new THREE.Vector3(-1000, 0, 0);
         const hand2Target = new THREE.Vector3(-1000, 0, 0);
@@ -442,6 +455,7 @@
                     // Map to 3D space
                     const offset = index * 5;
                     fingertips.forEach((tip, i) => {
+                        // Mirror X for intuitive control
                         const x = (0.5 - tip.x) * 140;
                         const y = (0.5 - tip.y) * 100;
                         const z = (tip.z) * 60;
@@ -576,12 +590,23 @@
             const time = now * 0.001;
             material.uniforms.uTime.value = time;
 
-            // Smooth hand/finger movement
-            const lerpFactor = 0.15;
+            // Smooth hand/finger movement and velocity calculation
+            const lerpFactor = 0.25; // Increased for responsiveness
             for(let i = 0; i < 10; i++) {
+                const prevPos = fingerCurrents[i].clone();
                 fingerCurrents[i].lerp(fingerTargets[i], lerpFactor);
+                
+                // Calculate velocity: current - previous
+                if (fingerTargets[i].x > -500) {
+                    const newVel = new THREE.Vector3().subVectors(fingerCurrents[i], prevPos);
+                    // Low-pass filter for velocity to reduce jitter
+                    fingerVelocities[i].lerp(newVel, 0.3);
+                } else {
+                    fingerVelocities[i].set(0, 0, 0);
+                }
             }
             material.uniforms.uFingers.value = fingerCurrents;
+            material.uniforms.uFingerVelocities.value = fingerVelocities;
 
             hand1Current.lerp(hand1Target, lerpFactor);
             hand2Current.lerp(hand2Target, lerpFactor);
@@ -608,7 +633,7 @@
                 }
             }
 
-            if (hand1Target.x < -500) {
+            if (hand1Target.x < -500 && hand2Target.x < -500) {
                 scene.rotation.y += 0.003;
                 scene.rotation.x = Math.sin(time * 0.3) * 0.1;
             } else {
