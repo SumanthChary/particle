@@ -176,7 +176,7 @@
         import { AfterimagePass } from 'https://unpkg.com/three@0.160.0/examples/jsm/postprocessing/AfterimagePass.js';
 
         // --- CONFIGURATION ---
-        const PARTICLE_COUNT = 25000; 
+        const PARTICLE_COUNT = 3000; 
         const SHAPES = ['GALAXY', 'NEBULA', 'DNA', 'FLOWER_OF_LIFE', 'HUMAN'];
         let currentShapeIndex = 0;
         let nextShapeIndex = 0;
@@ -227,12 +227,12 @@
         const composer = new EffectComposer(renderer);
         composer.addPass(new RenderPass(scene, camera));
         
-        const afterimagePass = new AfterimagePass(0.97);
+        const afterimagePass = new AfterimagePass(0.88);
         composer.addPass(afterimagePass);
 
         const bloomPass = new UnrealBloomPass(
             new THREE.Vector2(window.innerWidth, window.innerHeight), 
-            2.0, 
+            1.5, 
             0.5, 
             0.1 
         );
@@ -258,7 +258,7 @@
             colors[i * 3] = color.r;
             colors[i * 3 + 1] = color.g;
             colors[i * 3 + 2] = color.b;
-            sizes[i] = Math.random() * 2.5 + 1.5;
+            sizes[i] = Math.random() * 1.5 + 0.5;
             
             posA[i * 3] = (Math.random() - 0.5) * 200;
             posA[i * 3 + 1] = (Math.random() - 0.5) * 200;
@@ -601,8 +601,17 @@
             
             try {
                 // Explicitly request permission first
-                await navigator.mediaDevices.getUserMedia({ video: true });
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    } 
+                });
                 
+                // Assign stream to video element to ensure it's active
+                videoElement.srcObject = stream;
+                await videoElement.play();
+
                 console.log("Camera permission granted. Starting camera...");
                 await cameraUtils.start();
                 
