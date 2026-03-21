@@ -53,7 +53,17 @@
             text-transform: uppercase;
             letter-spacing: 2px;
             font-size: 10px;
-            opacity: 0.6;
+            opacity: 0.8;
+            z-index: 10;
+        }
+        #shape-name {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 5px;
+            letter-spacing: 4px;
+        }
+        #gesture-hint {
+            opacity: 0.5;
         }
         #loading {
             position: absolute;
@@ -209,7 +219,7 @@
             uniforms: {
                 uTime: { value: 0 },
                 uMorph: { value: 0 },
-                uFingers: { value: new Array(10).fill(new THREE.Vector3(-1000, 0, 0)) },
+                uFingers: { value: new Array(10).fill(null).map(() => new THREE.Vector3(-1000, 0, 0)) },
                 uExplosion: { value: 0 },
                 uVortex: { value: 0 },
                 uBridge: { value: 0 }
