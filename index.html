@@ -25,17 +25,24 @@
             overflow: hidden;
             border: 2px solid rgba(255, 255, 255, 0.2);
             transform: scaleX(-1);
-            opacity: 0.5;
+            opacity: 0.8;
             transition: opacity 0.3s;
             pointer-events: none;
+            z-index: 50;
+            background: #000;
         }
-        #video-container:hover {
-            opacity: 1;
-        }
-        video {
+        #input-video {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            opacity: 0.4;
+        }
+        #skeleton-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
         }
         #ui {
             position: absolute;
@@ -88,6 +95,7 @@
     </div>
     <div id="video-container">
         <video id="input-video" muted autoplay playsinline></video>
+        <canvas id="skeleton-canvas"></canvas>
     </div>
 
     <script type="importmap">
@@ -201,8 +209,7 @@
             uniforms: {
                 uTime: { value: 0 },
                 uMorph: { value: 0 },
-                uHand1: { value: new THREE.Vector3(-1000, 0, 0) },
-                uHand2: { value: new THREE.Vector3(-1000, 0, 0) },
+                uFingers: { value: new Array(10).fill(new THREE.Vector3(-1000, 0, 0)) },
                 uExplosion: { value: 0 },
                 uVortex: { value: 0 },
                 uBridge: { value: 0 }
@@ -215,8 +222,7 @@
                 varying vec3 vColor;
                 uniform float uTime;
                 uniform float uMorph;
-                uniform vec3 uHand1;
-                uniform vec3 uHand2;
+                uniform vec3 uFingers[10];
                 uniform float uExplosion;
                 uniform float uVortex;
                 uniform float uBridge;
@@ -229,31 +235,26 @@
                     pos.x += sin(uTime * 0.4 + pos.y * 0.05) * 0.8;
                     pos.y += cos(uTime * 0.4 + pos.x * 0.05) * 0.8;
 
-                    // Hand 1 Interaction
-                    float d1 = distance(pos, uHand1);
-                    if(d1 < 35.0) {
-                        float force = (1.0 - d1 / 35.0);
-                        // Repulsion
-                        pos += normalize(pos - uHand1) * uExplosion * force * 15.0;
-                        // Vortex
-                        vec3 toHand = uHand1 - pos;
-                        vec3 orbit = cross(toHand, vec3(0.0, 0.0, 1.0));
-                        pos += normalize(orbit) * uVortex * force * 8.0;
+                    // Multi-finger Interaction
+                    for(int i = 0; i < 10; i++) {
+                        vec3 fPos = uFingers[i];
+                        if(fPos.x < -500.0) continue;
+
+                        float d = distance(pos, fPos);
+                        if(d < 25.0) {
+                            float force = (1.0 - d / 25.0);
+                            // Repulsion
+                            pos += normalize(pos - fPos) * uExplosion * force * 12.0;
+                            // Vortex
+                            vec3 toFinger = fPos - pos;
+                            vec3 orbit = cross(toFinger, vec3(0.0, 0.0, 1.0));
+                            pos += normalize(orbit) * uVortex * force * 6.0;
+                        }
                     }
 
-                    // Hand 2 Interaction
-                    float d2 = distance(pos, uHand2);
-                    if(d2 < 35.0) {
-                        float force = (1.0 - d2 / 35.0);
-                        pos += normalize(pos - uHand2) * uExplosion * force * 15.0;
-                        vec3 toHand = uHand2 - pos;
-                        vec3 orbit = cross(toHand, vec3(0.0, 0.0, 1.0));
-                        pos += normalize(orbit) * uVortex * force * 8.0;
-                    }
-
-                    // Bridge Interaction
-                    if(uBridge > 0.1) {
-                        vec3 midPoint = mix(uHand1, uHand2, 0.5);
+                    // Bridge Interaction (using first finger of each hand as proxies)
+                    if(uBridge > 0.1 && uFingers[0].x > -500.0 && uFingers[5].x > -500.0) {
+                        vec3 midPoint = mix(uFingers[0], uFingers[5], 0.5);
                         float dMid = distance(pos, midPoint);
                         if(dMid < 25.0) {
                             pos = mix(pos, midPoint, uBridge * 0.1);
@@ -392,28 +393,62 @@
         let morphStartTime = 0;
         const MORPH_DURATION = 1500;
 
+        const skeletonCanvas = document.getElementById('skeleton-canvas');
+        const ctx = skeletonCanvas.getContext('2d');
+
         // Smoothing for hand positions
+        const fingerTargets = new Array(10).fill(null).map(() => new THREE.Vector3(-1000, 0, 0));
+        const fingerCurrents = new Array(10).fill(null).map(() => new THREE.Vector3(-1000, 0, 0));
+        
         const hand1Target = new THREE.Vector3(-1000, 0, 0);
         const hand2Target = new THREE.Vector3(-1000, 0, 0);
         const hand1Current = new THREE.Vector3(-1000, 0, 0);
         const hand2Current = new THREE.Vector3(-1000, 0, 0);
 
         hands.onResults((results) => {
+            // Clear skeleton canvas
+            ctx.clearRect(0, 0, skeletonCanvas.width, skeletonCanvas.height);
+            
+            // Reset targets
+            for(let i = 0; i < 10; i++) fingerTargets[i].set(-1000, 0, 0);
+            hand1Target.set(-1000, 0, 0);
+            hand2Target.set(-1000, 0, 0);
+
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 results.multiHandLandmarks.forEach((landmarks, index) => {
                     const palm = landmarks[0];
+                    const fingertips = [landmarks[4], landmarks[8], landmarks[12], landmarks[16], landmarks[20]];
+                    
+                    // Draw skeleton
+                    ctx.strokeStyle = index === 0 ? '#00d2ff' : '#ff0080';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    fingertips.forEach(tip => {
+                        ctx.moveTo(palm.x * skeletonCanvas.width, palm.y * skeletonCanvas.height);
+                        ctx.lineTo(tip.x * skeletonCanvas.width, tip.y * skeletonCanvas.height);
+                    });
+                    ctx.stroke();
+
+                    // Map to 3D space
+                    const offset = index * 5;
+                    fingertips.forEach((tip, i) => {
+                        const x = (0.5 - tip.x) * 140;
+                        const y = (0.5 - tip.y) * 100;
+                        const z = (tip.z) * 60;
+                        fingerTargets[offset + i].set(x, y, z);
+                    });
+
+                    // Palm for indicators
+                    const px = (0.5 - palm.x) * 140;
+                    const py = (0.5 - palm.y) * 100;
+                    const pz = (palm.z) * 60;
+                    if(index === 0) hand1Target.set(px, py, pz);
+                    else hand2Target.set(px, py, pz);
+
+                    // Gestures
                     const thumbTip = landmarks[4];
                     const indexTip = landmarks[8];
                     const middleTip = landmarks[12];
-
-                    // Map to 3D space with better scaling
-                    const x = (0.5 - palm.x) * 140;
-                    const y = (0.5 - palm.y) * 100;
-                    const z = (palm.z) * 60;
-
-                    const target = index === 0 ? hand1Target : hand2Target;
-                    target.set(x, y, z);
-
                     const distPinch = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
                     const isPinch = distPinch < 0.04;
                     const distFist = Math.hypot(palm.x - middleTip.x, palm.y - middleTip.y);
@@ -450,8 +485,6 @@
                     material.uniforms.uBridge.value = THREE.MathUtils.lerp(material.uniforms.uBridge.value, 0, 0.1);
                 }
             } else {
-                hand1Target.set(-1000, 0, 0);
-                hand2Target.set(-1000, 0, 0);
                 material.uniforms.uExplosion.value = THREE.MathUtils.lerp(material.uniforms.uExplosion.value, 0, 0.05);
                 material.uniforms.uVortex.value = THREE.MathUtils.lerp(material.uniforms.uVortex.value, 0, 0.05);
                 material.uniforms.uBridge.value = THREE.MathUtils.lerp(material.uniforms.uBridge.value, 0, 0.05);
@@ -460,6 +493,11 @@
 
         const cameraUtils = new window.Camera(videoElement, {
             onFrame: async () => {
+                // Sync canvas size
+                if(skeletonCanvas.width !== videoElement.videoWidth) {
+                    skeletonCanvas.width = videoElement.videoWidth;
+                    skeletonCanvas.height = videoElement.videoHeight;
+                }
                 await hands.send({ image: videoElement });
             },
             width: 640,
@@ -528,13 +566,15 @@
             const time = now * 0.001;
             material.uniforms.uTime.value = time;
 
-            // Smooth hand movement
+            // Smooth hand/finger movement
             const lerpFactor = 0.15;
+            for(let i = 0; i < 10; i++) {
+                fingerCurrents[i].lerp(fingerTargets[i], lerpFactor);
+            }
+            material.uniforms.uFingers.value = fingerCurrents;
+
             hand1Current.lerp(hand1Target, lerpFactor);
             hand2Current.lerp(hand2Target, lerpFactor);
-
-            material.uniforms.uHand1.value.copy(hand1Current);
-            material.uniforms.uHand2.value.copy(hand2Current);
 
             // Update indicators
             handIndicator1.position.copy(hand1Current);
