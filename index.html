@@ -57,12 +57,30 @@
             text-align: center;
             z-index: 100;
         }
+        #loading button:hover {
+            background: white !important;
+            color: black !important;
+        }
     </style>
 </head>
 <body>
     <div id="loading">
-        <h1>INITIALIZING UNIVERSE</h1>
-        <p>Allow camera access to begin...</p>
+        <h1 style="letter-spacing: 4px; margin-bottom: 30px;">PARTICLE UNIVERSE</h1>
+        <div id="start-container">
+            <button id="start-btn" style="
+                background: transparent;
+                border: 1px solid #fff;
+                color: #fff;
+                padding: 15px 40px;
+                cursor: pointer;
+                font-family: 'Inter', sans-serif;
+                letter-spacing: 3px;
+                font-size: 14px;
+                transition: all 0.3s;
+                text-transform: uppercase;
+            ">ENTER UNIVERSE</button>
+            <p style="font-size: 10px; opacity: 0.5; margin-top: 20px; letter-spacing: 1px;">CAMERA ACCESS REQUIRED FOR GESTURE CONTROL</p>
+        </div>
     </div>
     <div id="ui">
         <div id="shape-name">FORMATION: GALAXY</div>
@@ -93,7 +111,7 @@
         import { AfterimagePass } from 'https://unpkg.com/three@0.160.0/examples/jsm/postprocessing/AfterimagePass.js';
 
         // --- CONFIGURATION ---
-        const PARTICLE_COUNT = 100000; 
+        const PARTICLE_COUNT = 60000; 
         const SHAPES = ['GALAXY', 'NEBULA', 'DNA', 'FLOWER_OF_LIFE', 'HUMAN'];
         let currentShapeIndex = 0;
         let nextShapeIndex = 0;
@@ -101,10 +119,10 @@
         // --- THREE.JS SETUP ---
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.z = 60;
+        camera.position.z = 70;
 
         const renderer = new THREE.WebGLRenderer({ 
-            antialias: false, 
+            antialias: true, 
             powerPreference: "high-performance",
             alpha: true 
         });
@@ -113,18 +131,32 @@
         renderer.setClearColor(0x000000, 1);
         document.body.appendChild(renderer.domElement);
 
+        // --- HAND INDICATORS ---
+        const handIndicator1 = new THREE.Mesh(
+            new THREE.SphereGeometry(1.5, 16, 16),
+            new THREE.MeshBasicMaterial({ color: 0x00d2ff, transparent: true, opacity: 0.5 })
+        );
+        const handIndicator2 = new THREE.Mesh(
+            new THREE.SphereGeometry(1.5, 16, 16),
+            new THREE.MeshBasicMaterial({ color: 0xff0080, transparent: true, opacity: 0.5 })
+        );
+        handIndicator1.position.set(-1000, 0, 0);
+        handIndicator2.position.set(-1000, 0, 0);
+        scene.add(handIndicator1);
+        scene.add(handIndicator2);
+
         // --- POST PROCESSING ---
         const composer = new EffectComposer(renderer);
         composer.addPass(new RenderPass(scene, camera));
         
-        const afterimagePass = new AfterimagePass(0.8);
+        const afterimagePass = new AfterimagePass(0.85);
         composer.addPass(afterimagePass);
 
         const bloomPass = new UnrealBloomPass(
             new THREE.Vector2(window.innerWidth, window.innerHeight), 
-            1.5, 
-            0.4, 
-            0.85 
+            2.0, 
+            0.5, 
+            0.1 
         );
         composer.addPass(bloomPass);
 
@@ -148,7 +180,7 @@
             colors[i * 3] = color.r;
             colors[i * 3 + 1] = color.g;
             colors[i * 3 + 2] = color.b;
-            sizes[i] = Math.random() * 1.5 + 0.5;
+            sizes[i] = Math.random() * 1.2 + 0.4;
             
             posA[i * 3] = (Math.random() - 0.5) * 200;
             posA[i * 3 + 1] = (Math.random() - 0.5) * 200;
@@ -192,35 +224,44 @@
                 void main() {
                     vColor = color;
                     vec3 pos = mix(posA, posB, uMorph);
-                    pos.x += sin(uTime * 0.5 + pos.y * 0.1) * 0.5;
-                    pos.y += cos(uTime * 0.5 + pos.x * 0.1) * 0.5;
+                    
+                    // Subtle floating animation
+                    pos.x += sin(uTime * 0.4 + pos.y * 0.05) * 0.8;
+                    pos.y += cos(uTime * 0.4 + pos.x * 0.05) * 0.8;
 
+                    // Hand 1 Interaction
                     float d1 = distance(pos, uHand1);
-                    if(d1 < 30.0) {
-                        pos += normalize(pos - uHand1) * uExplosion * (30.0 - d1) * 0.5;
+                    if(d1 < 35.0) {
+                        float force = (1.0 - d1 / 35.0);
+                        // Repulsion
+                        pos += normalize(pos - uHand1) * uExplosion * force * 15.0;
+                        // Vortex
                         vec3 toHand = uHand1 - pos;
                         vec3 orbit = cross(toHand, vec3(0.0, 0.0, 1.0));
-                        pos += normalize(orbit) * uVortex * (30.0 - d1) * 0.2;
+                        pos += normalize(orbit) * uVortex * force * 8.0;
                     }
 
+                    // Hand 2 Interaction
                     float d2 = distance(pos, uHand2);
-                    if(d2 < 30.0) {
-                        pos += normalize(pos - uHand2) * uExplosion * (30.0 - d2) * 0.5;
+                    if(d2 < 35.0) {
+                        float force = (1.0 - d2 / 35.0);
+                        pos += normalize(pos - uHand2) * uExplosion * force * 15.0;
                         vec3 toHand = uHand2 - pos;
                         vec3 orbit = cross(toHand, vec3(0.0, 0.0, 1.0));
-                        pos += normalize(orbit) * uVortex * (30.0 - d2) * 0.2;
+                        pos += normalize(orbit) * uVortex * force * 8.0;
                     }
 
+                    // Bridge Interaction
                     if(uBridge > 0.1) {
                         vec3 midPoint = mix(uHand1, uHand2, 0.5);
                         float dMid = distance(pos, midPoint);
-                        if(dMid < 20.0) {
-                            pos = mix(pos, midPoint, uBridge * 0.05);
+                        if(dMid < 25.0) {
+                            pos = mix(pos, midPoint, uBridge * 0.1);
                         }
                     }
 
                     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-                    gl_PointSize = size * (400.0 / -mvPosition.z);
+                    gl_PointSize = size * (500.0 / -mvPosition.z);
                     gl_Position = projectionMatrix * mvPosition;
                 }
             `,
@@ -246,15 +287,15 @@
             if (shape === 'GALAXY') {
                 for (let i = 0; i < PARTICLE_COUNT; i++) {
                     const angle = Math.random() * Math.PI * 2;
-                    const radius = Math.pow(Math.random(), 0.5) * 40;
+                    const radius = Math.pow(Math.random(), 0.5) * 50;
                     const spiral = radius * 0.3;
                     targetArray[i * 3] = Math.cos(angle + spiral) * radius;
-                    targetArray[i * 3 + 1] = (Math.random() - 0.5) * (8 - radius * 0.15);
+                    targetArray[i * 3 + 1] = (Math.random() - 0.5) * (10 - radius * 0.15);
                     targetArray[i * 3 + 2] = Math.sin(angle + spiral) * radius;
                 }
             } else if (shape === 'NEBULA') {
                 for (let i = 0; i < PARTICLE_COUNT; i++) {
-                    const r = 35;
+                    const r = 40;
                     targetArray[i * 3] = (Math.random() - 0.5) * r * 2;
                     targetArray[i * 3 + 1] = (Math.random() - 0.5) * r * 1.5;
                     targetArray[i * 3 + 2] = (Math.random() - 0.5) * r * 2;
@@ -267,16 +308,16 @@
             } else if (shape === 'DNA') {
                 for (let i = 0; i < PARTICLE_COUNT; i++) {
                     const side = i % 2 === 0 ? 1 : -1;
-                    const t = (i / PARTICLE_COUNT) * 60 - 30;
+                    const t = (i / PARTICLE_COUNT) * 80 - 40;
                     const angle = t * 0.6;
-                    const r = 10;
+                    const r = 12;
                     targetArray[i * 3] = Math.cos(angle) * r * side + (Math.random() - 0.5) * 3;
                     targetArray[i * 3 + 1] = t * 1.2;
                     targetArray[i * 3 + 2] = Math.sin(angle) * r * side + (Math.random() - 0.5) * 3;
                 }
             } else if (shape === 'FLOWER_OF_LIFE') {
                 const circles = 19;
-                const r = 8;
+                const r = 10;
                 const step = Math.PI * 2 / 6;
                 for (let i = 0; i < PARTICLE_COUNT; i++) {
                     const circleIdx = i % circles;
@@ -304,24 +345,24 @@
                     if(p < 0.15) { // Head
                         const angle = Math.random() * Math.PI * 2;
                         const phi = Math.random() * Math.PI;
-                        const r = 5;
+                        const r = 6;
                         x = Math.sin(phi) * Math.cos(angle) * r;
-                        y = Math.cos(phi) * r + 20;
+                        y = Math.cos(phi) * r + 25;
                         z = Math.sin(phi) * Math.sin(angle) * r;
                     } else if(p < 0.55) { // Torso
-                        x = (Math.random() - 0.5) * 12;
-                        y = (Math.random() - 0.5) * 25 + 5;
-                        z = (Math.random() - 0.5) * 8;
+                        x = (Math.random() - 0.5) * 15;
+                        y = (Math.random() - 0.5) * 30 + 5;
+                        z = (Math.random() - 0.5) * 10;
                     } else if(p < 0.75) { // Arms
                         const side = Math.random() > 0.5 ? 1 : -1;
-                        x = (Math.random() * 18 + 6) * side;
-                        y = (Math.random() - 0.5) * 5 + 15;
-                        z = (Math.random() - 0.5) * 5;
+                        x = (Math.random() * 22 + 8) * side;
+                        y = (Math.random() - 0.5) * 6 + 18;
+                        z = (Math.random() - 0.5) * 6;
                     } else { // Legs
                         const side = Math.random() > 0.5 ? 1 : -1;
-                        x = (Math.random() * 4 + 3) * side;
-                        y = (Math.random() * -25) - 10;
-                        z = (Math.random() - 0.5) * 5;
+                        x = (Math.random() * 5 + 4) * side;
+                        y = (Math.random() * -30) - 15;
+                        z = (Math.random() - 0.5) * 6;
                     }
                     targetArray[i * 3] = x;
                     targetArray[i * 3 + 1] = y;
@@ -351,9 +392,13 @@
         let morphStartTime = 0;
         const MORPH_DURATION = 1500;
 
+        // Smoothing for hand positions
+        const hand1Target = new THREE.Vector3(-1000, 0, 0);
+        const hand2Target = new THREE.Vector3(-1000, 0, 0);
+        const hand1Current = new THREE.Vector3(-1000, 0, 0);
+        const hand2Current = new THREE.Vector3(-1000, 0, 0);
+
         hands.onResults((results) => {
-            document.getElementById('loading').style.display = 'none';
-            
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 results.multiHandLandmarks.forEach((landmarks, index) => {
                     const palm = landmarks[0];
@@ -361,12 +406,13 @@
                     const indexTip = landmarks[8];
                     const middleTip = landmarks[12];
 
-                    const x = (0.5 - palm.x) * 120;
-                    const y = (0.5 - palm.y) * 90;
-                    const z = (palm.z) * 50;
+                    // Map to 3D space with better scaling
+                    const x = (0.5 - palm.x) * 140;
+                    const y = (0.5 - palm.y) * 100;
+                    const z = (palm.z) * 60;
 
-                    const handUniform = index === 0 ? material.uniforms.uHand1 : material.uniforms.uHand2;
-                    handUniform.value.set(x, y, z);
+                    const target = index === 0 ? hand1Target : hand2Target;
+                    target.set(x, y, z);
 
                     const distPinch = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
                     const isPinch = distPinch < 0.04;
@@ -387,11 +433,11 @@
                     }
 
                     if(isFist) {
-                        material.uniforms.uVortex.value = THREE.MathUtils.lerp(material.uniforms.uVortex.value, 2.0, 0.1);
-                        material.uniforms.uExplosion.value = THREE.MathUtils.lerp(material.uniforms.uExplosion.value, 0, 0.1);
+                        material.uniforms.uVortex.value = THREE.MathUtils.lerp(material.uniforms.uVortex.value, 2.5, 0.15);
+                        material.uniforms.uExplosion.value = THREE.MathUtils.lerp(material.uniforms.uExplosion.value, 0, 0.15);
                     } else if(isPalm) {
-                        material.uniforms.uExplosion.value = THREE.MathUtils.lerp(material.uniforms.uExplosion.value, 3.0, 0.1);
-                        material.uniforms.uVortex.value = THREE.MathUtils.lerp(material.uniforms.uVortex.value, 0, 0.1);
+                        material.uniforms.uExplosion.value = THREE.MathUtils.lerp(material.uniforms.uExplosion.value, 4.0, 0.15);
+                        material.uniforms.uVortex.value = THREE.MathUtils.lerp(material.uniforms.uVortex.value, 0, 0.15);
                     } else {
                         material.uniforms.uExplosion.value = THREE.MathUtils.lerp(material.uniforms.uExplosion.value, 0, 0.1);
                         material.uniforms.uVortex.value = THREE.MathUtils.lerp(material.uniforms.uVortex.value, 0, 0.1);
@@ -404,11 +450,63 @@
                     material.uniforms.uBridge.value = THREE.MathUtils.lerp(material.uniforms.uBridge.value, 0, 0.1);
                 }
             } else {
-                material.uniforms.uHand1.value.set(-1000, 0, 0);
-                material.uniforms.uHand2.value.set(-1000, 0, 0);
+                hand1Target.set(-1000, 0, 0);
+                hand2Target.set(-1000, 0, 0);
                 material.uniforms.uExplosion.value = THREE.MathUtils.lerp(material.uniforms.uExplosion.value, 0, 0.05);
                 material.uniforms.uVortex.value = THREE.MathUtils.lerp(material.uniforms.uVortex.value, 0, 0.05);
                 material.uniforms.uBridge.value = THREE.MathUtils.lerp(material.uniforms.uBridge.value, 0, 0.05);
+            }
+        });
+
+        const cameraUtils = new window.Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({ image: videoElement });
+            },
+            width: 640,
+            height: 480
+        });
+
+        const startBtn = document.getElementById('start-btn');
+        const startContainer = document.getElementById('start-container');
+
+        startBtn.addEventListener('click', async () => {
+            startBtn.disabled = true;
+            startBtn.innerText = "INITIALIZING...";
+            
+            try {
+                // Explicitly request permission first
+                await navigator.mediaDevices.getUserMedia({ video: true });
+                
+                console.log("Camera permission granted. Starting camera...");
+                await cameraUtils.start();
+                
+                // Hide loading screen once camera is running
+                document.getElementById('loading').style.display = 'none';
+            } catch (err) {
+                console.error("Camera error:", err);
+                const loadingEl = document.getElementById('loading');
+                if (loadingEl) {
+                    loadingEl.innerHTML = `
+                        <div style="color: #ff0080; font-size: 24px; margin-bottom: 20px;">CAMERA ACCESS REQUIRED</div>
+                        <div style="font-size: 16px; opacity: 0.8; max-width: 400px; margin: 0 auto 30px; line-height: 1.5;">
+                            This universe requires your camera to track hand gestures.<br><br>
+                            Please click the button below and select "Allow" when prompted.
+                        </div>
+                        <button id="grant-btn" style="
+                            background: transparent;
+                            border: 1px solid #fff;
+                            color: #fff;
+                            padding: 12px 24px;
+                            cursor: pointer;
+                            font-family: 'Inter', sans-serif;
+                            letter-spacing: 2px;
+                            transition: all 0.3s;
+                        ">GRANT PERMISSION</button>
+                    `;
+                    document.getElementById('grant-btn').addEventListener('click', () => {
+                        location.reload();
+                    });
+                }
             }
         });
 
@@ -422,47 +520,30 @@
             throw new Error("getUserMedia not supported");
         }
 
-        console.log("Initializing camera...");
-        const cameraUtils = new window.Camera(videoElement, {
-            onFrame: async () => {
-                await hands.send({ image: videoElement });
-            },
-            width: 640,
-            height: 480
-        });
-
-        cameraUtils.start().catch(err => {
-            console.error("Camera error:", err);
-            const loadingEl = document.getElementById('loading');
-            if (loadingEl) {
-                loadingEl.innerHTML = `
-                    <div style="color: #ff0080; font-size: 24px; margin-bottom: 20px;">CAMERA ACCESS REQUIRED</div>
-                    <div style="font-size: 16px; opacity: 0.8; max-width: 400px; margin: 0 auto 30px; line-height: 1.5;">
-                        This universe requires your camera to track hand gestures.<br><br>
-                        Please click the button below and select "Allow" when prompted.
-                    </div>
-                    <button id="grant-btn" style="
-                        background: transparent;
-                        border: 1px solid #fff;
-                        color: #fff;
-                        padding: 12px 24px;
-                        cursor: pointer;
-                        font-family: 'Inter', sans-serif;
-                        letter-spacing: 2px;
-                        transition: all 0.3s;
-                    ">GRANT PERMISSION</button>
-                `;
-                document.getElementById('grant-btn').addEventListener('click', () => {
-                    location.reload(); // Simplest way to re-trigger the browser's permission prompt
-                });
-            }
-        });
-
+        console.log("Camera initialized.");
+        
         function animate() {
             requestAnimationFrame(animate);
             const now = performance.now();
             const time = now * 0.001;
             material.uniforms.uTime.value = time;
+
+            // Smooth hand movement
+            const lerpFactor = 0.15;
+            hand1Current.lerp(hand1Target, lerpFactor);
+            hand2Current.lerp(hand2Target, lerpFactor);
+
+            material.uniforms.uHand1.value.copy(hand1Current);
+            material.uniforms.uHand2.value.copy(hand2Current);
+
+            // Update indicators
+            handIndicator1.position.copy(hand1Current);
+            handIndicator2.position.copy(hand2Current);
+            
+            // Pulse indicators
+            const pulse = 1.0 + Math.sin(time * 10.0) * 0.2;
+            handIndicator1.scale.set(pulse, pulse, pulse);
+            handIndicator2.scale.set(pulse, pulse, pulse);
 
             if(morphing) {
                 const elapsed = now - morphStartTime;
@@ -477,7 +558,7 @@
                 }
             }
 
-            if (material.uniforms.uHand1.value.x < -500) {
+            if (hand1Target.x < -500) {
                 scene.rotation.y += 0.003;
                 scene.rotation.x = Math.sin(time * 0.3) * 0.1;
             } else {
