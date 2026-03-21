@@ -55,15 +55,20 @@
             font-size: 10px;
             opacity: 0.8;
             z-index: 10;
+            max-width: calc(100% - 40px);
         }
         #shape-name {
             font-size: 24px;
             font-weight: 700;
             margin-bottom: 5px;
             letter-spacing: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         #gesture-hint {
             opacity: 0.5;
+            line-height: 1.4;
         }
         #loading {
             position: absolute;
@@ -73,16 +78,58 @@
             color: white;
             text-align: center;
             z-index: 100;
+            width: 90%;
+            max-width: 500px;
+        }
+        #loading h1 {
+            font-size: clamp(24px, 8vw, 48px);
+            letter-spacing: 4px;
+            margin-bottom: 30px;
         }
         #loading button:hover {
             background: white !important;
             color: black !important;
         }
+
+        /* Responsive Adjustments */
+        @media (max-width: 768px) {
+            #ui {
+                top: 15px;
+                left: 15px;
+            }
+            #shape-name {
+                font-size: 18px;
+                letter-spacing: 2px;
+            }
+            #gesture-hint {
+                font-size: 8px;
+            }
+            #video-container {
+                width: 160px;
+                height: 120px;
+                bottom: 15px;
+                right: 15px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            #shape-name {
+                font-size: 16px;
+            }
+            #video-container {
+                width: 120px;
+                height: 90px;
+            }
+            #start-btn {
+                padding: 12px 30px !important;
+                font-size: 12px !important;
+            }
+        }
     </style>
 </head>
 <body>
     <div id="loading">
-        <h1 style="letter-spacing: 4px; margin-bottom: 30px;">PARTICLE UNIVERSE</h1>
+        <h1>PARTICLE UNIVERSE</h1>
         <div id="start-container">
             <button id="start-btn" style="
                 background: transparent;
@@ -208,6 +255,10 @@
             posB[i * 3 + 1] = posA[i * 3 + 1];
             posB[i * 3 + 2] = posA[i * 3 + 2];
         }
+
+        // Initialize with first shape
+        generateShape(0, posA);
+        generateShape(0, posB);
 
         geometry.setAttribute('position', new THREE.BufferAttribute(posA, 3));
         geometry.setAttribute('posA', new THREE.BufferAttribute(posA, 3));
