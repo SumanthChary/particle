@@ -198,23 +198,36 @@
 
         // --- HAND INDICATORS ---
         const handIndicator1 = new THREE.Mesh(
-            new THREE.SphereGeometry(1.5, 16, 16),
-            new THREE.MeshBasicMaterial({ color: 0x00d2ff, transparent: true, opacity: 0.5 })
+            new THREE.SphereGeometry(1.2, 16, 16),
+            new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.8 })
         );
         const handIndicator2 = new THREE.Mesh(
-            new THREE.SphereGeometry(1.5, 16, 16),
-            new THREE.MeshBasicMaterial({ color: 0xff0080, transparent: true, opacity: 0.5 })
+            new THREE.SphereGeometry(1.2, 16, 16),
+            new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.8 })
         );
         handIndicator1.position.set(-1000, 0, 0);
         handIndicator2.position.set(-1000, 0, 0);
         scene.add(handIndicator1);
         scene.add(handIndicator2);
 
+        // --- GROUND PLANE ---
+        const floorGeom = new THREE.PlaneGeometry(120, 120);
+        const floorMat = new THREE.MeshBasicMaterial({ 
+            color: 0xffffff, 
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.9
+        });
+        const floor = new THREE.Mesh(floorGeom, floorMat);
+        floor.rotation.x = Math.PI / 2;
+        floor.position.y = -45;
+        scene.add(floor);
+
         // --- POST PROCESSING ---
         const composer = new EffectComposer(renderer);
         composer.addPass(new RenderPass(scene, camera));
         
-        const afterimagePass = new AfterimagePass(0.85);
+        const afterimagePass = new AfterimagePass(0.97);
         composer.addPass(afterimagePass);
 
         const bloomPass = new UnrealBloomPass(
@@ -310,7 +323,7 @@
                             float force = smoothstep(35.0, 0.0, d);
                             
                             // 1. Drag Effect: Particles follow finger movement with inertia
-                            pos += fVel * force * 20.0;
+                            pos += fVel * force * 25.0;
 
                             // 2. Repulsion (Explosion)
                             pos += normalize(pos - fPos) * uExplosion * force * 15.0;
@@ -321,7 +334,7 @@
                             pos += normalize(orbit) * uVortex * force * 8.0;
 
                             // 4. Magnetic Pull: Stronger "stickiness"
-                            pos = mix(pos, fPos, force * 0.12);
+                            pos = mix(pos, fPos, force * 0.15);
                         }
                     }
 
@@ -642,7 +655,7 @@
             material.uniforms.uTime.value = time;
 
             // Smooth hand/finger movement and velocity calculation
-            const lerpFactor = 0.25; // Increased for responsiveness
+            const lerpFactor = 0.3; // Increased for even more responsiveness
             for(let i = 0; i < 10; i++) {
                 const prevPos = fingerCurrents[i].clone();
                 fingerCurrents[i].lerp(fingerTargets[i], lerpFactor);
